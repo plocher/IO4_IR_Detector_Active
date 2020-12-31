@@ -1,0 +1,5 @@
+{
+"cpu": { "fqbn":"arduino:avr:pro:cpu=16MHzatmega328", "port":"serial:///dev/cu.usbserial-FTE4L0KY" }
+}
+
+

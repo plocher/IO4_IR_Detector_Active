@@ -1,5 +1,3 @@
-FQBN=$(shell  LC_ALL=C head *.ino | grep FQBN:  | sed -e "s/^.*FQBN://")
-PORT=$(shell  LC_ALL=C head *.ino | grep PORT:  | sed -e "s/^.*PORT://")
 DESC=$(shell  LC_ALL=C head *.ino | grep DESC:  | sed -e "s/^.*DESC://")
 BOARD=$(shell LC_ALL=C head *.ino | grep BOARD: | sed -e "s/^.*BOARD://")
 AUTHOR=$(shell LC_ALL=C head *.ino | grep AUTHOR: | sed -e "s/^.*AUTHOR://")
@@ -35,7 +33,6 @@ id:
 	@echo $(PROJECT) $(DESC)
 	@echo "Firmware for Eagle Project: $(BOARD)"
 	@echo "Written by $(AUTHOR), $(LICENSE)"
-	@echo Building for $(FQBN) on port $(PORT)
 
 debug:
 	@(\
@@ -60,11 +57,11 @@ debug:
             git log --pretty=format:"%h %s" --graph | sed -e "s/^/        /g"; \
         )
 
-compile:
-	arduino-cli compile -b $(FQBN)
+compile: sketch.json
+	arduino-cli compile
 
-upload:
-	arduino-cli upload -b $(FQBN) -p $(PORT)
+upload: sketch.json
+	arduino-cli upload
 
 publish:
 	convert2jekyll -t ino -n "$(PROJECT)"

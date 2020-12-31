@@ -1,5 +1,3 @@
-//FQBN:arduino:avr:pro:cpu=16MHzatmega328
-//PORT:/dev/cu.usbserial-FTE4L0KY
 //DESC:Arduino based proximity sensor
 //BOARD:IO4-IR-Detector-Active
 //AUTHOR:John Plocher
