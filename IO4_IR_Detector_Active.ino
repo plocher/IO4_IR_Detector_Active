@@ -9,6 +9,7 @@
 //
  
 #include <elapsedMillis.h>
+// #define V21A      // older board version based on Duemilanove Mega-128
 
 //#define DEBUG // both here and in the Circuit.h file...   for serial debug messages
 
@@ -37,10 +38,19 @@ void setup()
     pinMode(A2, INPUT);
     pinMode(A3, INPUT);
 
+    //              IRTX,IRRX,IO4,ledFeedback
+
+#ifdef V21A // has no independent LED feedback...
+    circuit[0].init(0, 2, A0, 6);
+    circuit[1].init(1, 3, A1, 7);
+    circuit[2].init(2, 4, A2, 8);
+    circuit[3].init(3, 5, A3, 9);
+#else
     circuit[0].init(0, 2, A0, 6, 10);
     circuit[1].init(1, 3, A1, 7, 11);
     circuit[2].init(2, 4, A2, 8, 12);
     circuit[3].init(3, 5, A3, 9, 13);
+#endif
 }
 
 bool activity = 0;
@@ -55,4 +65,38 @@ void loop()
     for (int x = 0; x < 4; x++) {
         circuit[x].check();
     }
+}
+
+#define ITEMS 30
+int r1[ITEMS];
+int r2[ITEMS];
+long int av1, av2;
+int item = 0;
+
+// DELAY = 4: 1:8 (7)  for old style sensor
+
+void xxloop() {
+#define IRLED 2
+#define IRRX  A0
+#define DELAY 4
+  digitalWrite(IRLED, 0); delay(DELAY); int v1 =  analogRead(IRRX);        // IR is off
+  digitalWrite(IRLED, 1); delay(DELAY); int v2 =  analogRead(IRRX);        // IR is on
+
+  r1[item] = v1;
+  r2[item] = v2;
+  av1 = av2 = 0;
+  for (int x = 0; x < ITEMS; x++) {
+    av1 += r1[x];
+    av2 += r2[x];
+  }
+  av1 /= ITEMS;
+  av2 /= ITEMS;
+
+  item++;
+  if (item >= ITEMS) item = 0;
+  
+  Serial.print(av1); Serial.print(' ');
+  Serial.print(av2); Serial.print(' ');
+  Serial.print(av2-av1); Serial.println();
+
 }

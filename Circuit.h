@@ -18,7 +18,9 @@
 
 //#define DEBUG
 
-#define HEADROOM 40
+//#define SHOW_IMMEDIATE
+
+#define HEADROOM 15
 #define HYSTERESIS 2000    // in mS units, 2000 = 2.0 seconds
 
 #define OCCUPIED LOW
@@ -26,75 +28,131 @@
 
 #define LIT 0
 #define DIM 1
-
+#define SAMPLES 30
+#define DWELL 4
 
 #include <Arduino.h>
 
 class Circuit {
+private:
+    enum State { R1, R2 };
 public:
     Circuit(void) {};
               //          IRTX       IRRX      IO4      ledFeedback
-    void init(int number, int irout, int irin, int io4, int led) {
+    void init(int number, int irout, int irin, int io4, int led = -1) {
         num = number;
         outPin  = irout;
         inPin   = irin;
         io4Pin  = io4;
         ledPin  = led;
+
+        state = R1;
+        sample  = 0;
+        for (int x = 0; x < SAMPLES; x++) {
+            r1[x] = r2[x] = 0;
+        }
         
         detected = false;
         delaytime = 0;
+        dwelltime = 0;
         pinMode(outPin,  OUTPUT);
         pinMode(io4Pin,  OUTPUT);
-        pinMode(ledPin,  OUTPUT);
         pinMode(inPin,   INPUT);
-        
-#ifdef DEBUG
-        digitalWrite(io4Pin,LIT); digitalWrite(ledPin,LIT);  delay(100); 
-#endif
-        digitalWrite(io4Pin,DIM); // Leave the detection pin 
-        digitalWrite(ledPin,DIM); // and LED OFF 
+        if (ledPin != -1) { 
+            pinMode(ledPin,  OUTPUT);
+            digitalWrite(ledPin,DIM); // and LED OFF 
+        }
+        digitalWrite(io4Pin,DIM); // default the detection pin to EMPTY
     };
     
     int check(void) {
-        digitalWrite(outPin, 0);       // turn off IR transmitter
-        delay(5);
-        int r1 =  analogRead(inPin);   // read ambient light intensity
-        
-        digitalWrite(outPin, 1);       // turn ON IR source
-        delay(5);
-        int r2 = analogRead(inPin);    // see if anything is reflecting
-        
-        digitalWrite(outPin, 0);       // make sure things are turned off when done
+        if (dwelltime > DWELL)  { // state machine ticks in increments of DWELLTIME...
+            dwelltime = 0;
+            
+            switch (state) {
+                case R1:    r1[sample] =  analogRead(inPin);
+                            digitalWrite(outPin, 1);       // turn ON IR source
+                            state = R2;
+                            break;
+                            
+                case R2:    r2[sample] =  analogRead(inPin);
+                            digitalWrite(outPin, 0);       // make sure things are turned off when done
 
-        if ((r2 - r1) > HEADROOM) {    // if a major positive difference, something has been detected...
-            delaytime = 0;  // expiration timer is reset every time detection is seen
-            digitalWrite(ledPin, OCCUPIED); 
-            if (detected == false) {   // newly triggered
-#ifdef DEBUG
-                Serial.print("ON  ");
-                Serial.print(num, DEC);
-                Serial.print(": ambient=");
-                Serial.print(r1, DEC);
-                Serial.print(", reflected=");
-                Serial.print(r2, DEC);
-                Serial.print(", diff=");
-                Serial.print(r2-r1, DEC);
+
+                            // calculate the runnuing average difference
+                            long int t1 = 0, t2 = 0;
+                            for (int x = 0; x < SAMPLES; x++) {
+                                t1 += r1[x];
+                                t2 += r2[x];
+                            }
+                            t1 /= SAMPLES;
+                            t2 /= SAMPLES;
+
+
+                            // Visual Feedback LED
+                            if (ledPin != -1) {   // real time feedback on a per-reading basis...
+                                int v1, v2;
+#ifdef SHOW_IMMEDIATE
+                                v1 = r1[sample];
+                                v2 = r2[sample];
+#else
+                                v1 = t1;
+                                v2 = t2;
 #endif
-            }
-            detected = true;
-        } else {
-            digitalWrite(ledPin, EMPTY);
-        }
-        if (detected) {
-            if (delaytime < HYSTERESIS) {
-                digitalWrite(io4Pin, OCCUPIED); 
-            } else {
+                                if ((v2 - v1) >= HEADROOM) {
+                                      digitalWrite(ledPin, OCCUPIED);
 #ifdef DEBUG
-                Serial.print("OFF "); 
-                Serial.println(num, DEC);
+                                      Serial.print("a=");
+                                      Serial.print(v1, DEC);
+                                      Serial.print(", r=");
+                                      Serial.print(v2, DEC);
+                                      Serial.print(", diff=");
+                                      Serial.println(v2-v1, DEC);
 #endif
-                digitalWrite(io4Pin, EMPTY); 
-                detected = false;
+                                } else {
+                                    digitalWrite(ledPin, EMPTY);
+                                }
+                            }
+
+                            // IO4 Feedback signal - always smoothed version and add hysteresis
+                            if ((t2 - t1) > HEADROOM) {    // if different, something has been detected...
+                                delaytime = 0;  // expiration timer is reset every time detection is seen
+
+#ifdef DEBUG
+                                if (detected == false) {   // newly triggered
+                                    if (num == 0) {
+                                      Serial.print("ON  ");
+                                      Serial.print(num, DEC);
+                                      Serial.print(": ambient=");
+                                      Serial.print(t1, DEC);
+                                      Serial.print(", reflected=");
+                                      Serial.print(t2, DEC);
+                                      Serial.print(", diff=");
+                                      Serial.print(t2-t1, DEC);
+                                  }                         
+                              }
+#endif   
+                              detected = true;
+                          }
+                          
+                          if (detected) {
+                              if (delaytime < HYSTERESIS) {
+                                  digitalWrite(io4Pin, OCCUPIED); 
+                              } else {  // no detection seen for a while...
+                                  digitalWrite(io4Pin, EMPTY); 
+                                  detected = false;
+#ifdef DEBUG
+                                  if (num == 0) {
+                                      Serial.print("OFF "); 
+                                      Serial.println(num, DEC);
+                                  }
+#endif
+                              }
+                          }
+                          state = R1;
+                          sample++;
+                          if (sample >= SAMPLES) sample = 0;
+                          break;    
             }
         }
         return detected ? 1 : 0;
@@ -103,6 +161,11 @@ public:
 private:  
     int num;
     elapsedMillis delaytime;
+    State state;
+    elapsedMillis dwelltime;
+    int r1[SAMPLES];
+    int r2[SAMPLES];
+    byte sample;
     int detected;
     int outPin;
     int inPin;
