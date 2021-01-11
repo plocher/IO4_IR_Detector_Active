@@ -16,11 +16,8 @@
 
 #include <elapsedMillis.h>
 
-//#define DEBUG
-
 //#define SHOW_IMMEDIATE
 
-#define HEADROOM 15
 #define HYSTERESIS 2000    // in mS units, 2000 = 2.0 seconds
 
 #define OCCUPIED LOW
@@ -38,13 +35,14 @@ private:
     enum State { R1, R2 };
 public:
     Circuit(void) {};
-              //          IRTX       IRRX      IO4      ledFeedback
-    void init(int number, int irout, int irin, int io4, int led = -1) {
+              //          IRTX       IRRX      IO4      headroom, ledFeedback
+    void init(int number, int irout, int irin, int io4, int head, int led = -1) {
         num = number;
         outPin  = irout;
         inPin   = irin;
         io4Pin  = io4;
         ledPin  = led;
+        headroom = head;
 
         state = R1;
         sample  = 0;
@@ -99,15 +97,17 @@ public:
                                 v1 = t1;
                                 v2 = t2;
 #endif
-                                if ((v2 - v1) >= HEADROOM) {
+                                if ((v2 - v1) >= headroom) {
                                       digitalWrite(ledPin, OCCUPIED);
 #ifdef DEBUG
-                                      Serial.print("a=");
-                                      Serial.print(v1, DEC);
-                                      Serial.print(", r=");
-                                      Serial.print(v2, DEC);
-                                      Serial.print(", diff=");
-                                      Serial.println(v2-v1, DEC);
+                                      if (num == DEBUG) {
+                                        Serial.print("a=");
+                                        Serial.print(v1, DEC);
+                                        Serial.print(", r=");
+                                        Serial.print(v2, DEC);
+                                        Serial.print(", diff=");
+                                        Serial.println(v2-v1, DEC);
+                                      }
 #endif
                                 } else {
                                     digitalWrite(ledPin, EMPTY);
@@ -115,12 +115,12 @@ public:
                             }
 
                             // IO4 Feedback signal - always smoothed version and add hysteresis
-                            if ((t2 - t1) > HEADROOM) {    // if different, something has been detected...
+                            if ((t2 - t1) > headroom) {    // if different, something has been detected...
                                 delaytime = 0;  // expiration timer is reset every time detection is seen
 
 #ifdef DEBUG
                                 if (detected == false) {   // newly triggered
-                                    if (num == 0) {
+                                    if (num == DEBUG) {
                                       Serial.print("ON  ");
                                       Serial.print(num, DEC);
                                       Serial.print(": ambient=");
@@ -165,6 +165,7 @@ private:
     elapsedMillis dwelltime;
     int r1[SAMPLES];
     int r2[SAMPLES];
+    int headroom;
     byte sample;
     int detected;
     int outPin;

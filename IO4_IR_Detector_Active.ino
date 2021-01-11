@@ -11,7 +11,7 @@
 #include <elapsedMillis.h>
 // #define V21A      // older board version based on Duemilanove Mega-128
 
-//#define DEBUG // both here and in the Circuit.h file...   for serial debug messages
+//#define DEBUG 2 // both here and in the Circuit.h file...   for serial debug messages
 
 elapsedMillis t1;
 
@@ -38,18 +38,19 @@ void setup()
     pinMode(A2, INPUT);
     pinMode(A3, INPUT);
 
-    //              IRTX,IRRX,IO4,ledFeedback
+    //              IRTX,IRRX,IO4, headroom, ledFeedback
 
 #ifdef V21A // has no independent LED feedback...
-    circuit[0].init(0, 2, A0, 6);
-    circuit[1].init(1, 3, A1, 7);
-    circuit[2].init(2, 4, A2, 8);
-    circuit[3].init(3, 5, A3, 9);
+    circuit[0].init(0, 2, A0, 6, 15);
+    circuit[1].init(1, 3, A1, 7, 15);
+    circuit[2].init(2, 4, A2, 8, 15);
+    circuit[3].init(3, 5, A3, 9, 15);
 #else
-    circuit[0].init(0, 2, A0, 6, 10);
-    circuit[1].init(1, 3, A1, 7, 11);
-    circuit[2].init(2, 4, A2, 8, 12);
-    circuit[3].init(3, 5, A3, 9, 13);
+    //  The headroom parameter compensates for sensor differences and fluorescent light interference
+    circuit[0].init(0, 2, A0, 6, 50, 10);
+    circuit[1].init(1, 3, A1, 7, 90, 11);
+    circuit[2].init(2, 4, A2, 8, 20, 12);
+    circuit[3].init(3, 5, A3, 9, 20, 13);
 #endif
 }
 
@@ -76,8 +77,8 @@ int item = 0;
 // DELAY = 4: 1:8 (7)  for old style sensor
 
 void xxloop() {
-#define IRLED 2
-#define IRRX  A0
+#define IRLED 3
+#define IRRX  A1
 #define DELAY 4
   digitalWrite(IRLED, 0); delay(DELAY); int v1 =  analogRead(IRRX);        // IR is off
   digitalWrite(IRLED, 1); delay(DELAY); int v2 =  analogRead(IRRX);        // IR is on
